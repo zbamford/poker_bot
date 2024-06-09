@@ -20,7 +20,7 @@ class Player:
         """Mandatory method that calculates the move based on the observation array and the action space."""
         _ = observation
         equity_alive = info["player_data"]["equity_to_river_alive"]
-
+        print(info['player_data'])
         incremen1 = 0.1
         increment2 = 0.2
 

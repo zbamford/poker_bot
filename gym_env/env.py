@@ -12,7 +12,7 @@ from gym_env.enums import Action, Stage
 from gym_env.rendering import PygletWindow, WHITE, RED, GREEN, BLUE
 from tools.hand_evaluator import get_winner
 from tools.helper import flatten
-
+import time
 # pylint: disable=import-outside-toplevel
 
 log = logging.getLogger(__name__)
@@ -154,6 +154,11 @@ class HoldemTable(Env):
 
         for player in self.players:
             player.stack = self.initial_stacks
+            player.num_raises_in_street = {Stage.PREFLOP: 0,
+                                     Stage.FLOP: 0,
+                                     Stage.TURN: 0,
+                                     Stage.RIVER: 0
+            }
 
         self.dealer_pos = 0
         max_steps_after_raiser = (self.max_raises_per_player_round - 1) * len(self.players) - 1
@@ -215,6 +220,7 @@ class HoldemTable(Env):
         self._next_player()
 
         if self.stage in [Stage.END_HIDDEN, Stage.SHOWDOWN]:
+            
             self._end_hand()
             self._start_new_hand()
 
@@ -298,13 +304,20 @@ class HoldemTable(Env):
         Preliminiary implementation of reward function
 
         - Currently missing potential additional winnings from future contributions
-        """
-        # if last_action == Action.FOLD:
-        #     self.reward = -(
-        #             self.community_pot + self.current_round_pot)
-        # else:
-        #     self.reward = self.player_data.equity_to_river_alive * (self.community_pot + self.current_round_pot) - \
-        #                   (1 - self.player_data.equity_to_river_alive) * self.player_pots[self.current_player.seat]
+        # """
+        
+        self.reward = 0
+        # if self.stage in [Stage.END_HIDDEN, Stage.SHOWDOWN]:
+
+        
+        if last_action == Action.FOLD:
+            self.reward = -(
+                    self.community_pot + self.current_round_pot)
+        else:
+            self.reward = 0
+            self.reward = self.player_data.equity_to_river_alive * (self.community_pot + self.current_round_pot) - \
+                          (1 - self.player_data.equity_to_river_alive) * self.player_pots[self.current_player.seat]
+                          
         _ = last_action
         if self.done:
             won = 1 if not self._agent_is_autoplay(idx=self.winner_ix) else -1
@@ -439,6 +452,11 @@ class HoldemTable(Env):
 
         for player in self.players:
             player.cards = []
+            player.num_raises_in_street = {Stage.PREFLOP: 0,
+                                     Stage.FLOP: 0,
+                                     Stage.TURN: 0,
+                                     Stage.RIVER: 0
+            }
 
         self._next_dealer()
 
@@ -559,12 +577,23 @@ class HoldemTable(Env):
     def _clean_up_pots(self):
         self.community_pot += self.current_round_pot
         self.current_round_pot = 0
-        self.player_pots = [0] * len(self.players)
 
     def _end_hand(self):
         self._clean_up_pots()
         self.winner_ix = self._get_winner()
+        max_win_per_player_for_winner = self.player_max_win[self.winner_ix]
+        total_winnings = sum(np.minimum(max_win_per_player_for_winner, self.player_max_win))
+        for i in range(len(self.players)):
+            player = self.players[i]
+            if player.name =='Learner':
+                val = total_winnings
+                if self.winner_ix  != i:
+                    val = -self.community_pot
+                player.agent_obj.roundOver(val)
+        self.player_pots = [0] * len(self.players)
+        
         self._award_winner(self.winner_ix)
+
 
     def _get_winner(self):
         """Determine which player has won the hand"""
@@ -628,6 +657,10 @@ class HoldemTable(Env):
         else:
             self.legal_moves.append(Action.CALL)
             self.legal_moves.append(Action.FOLD)
+
+        if self.stage == Stage.SHOWDOWN:
+            print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+            return
 
         if self.current_player.num_raises_in_street[self.stage] < self.max_raises_per_player_round:
             if self.current_player.stack >= 3 * self.big_blind - self.player_pots[self.current_player.seat]:
