@@ -25,13 +25,14 @@ options:
 """
 
 import logging
-
+import sys
 import gym
 import numpy as np
 import pandas as pd
 from docopt import docopt
 import random
 import time
+from gym_env.enums import Action
 from gym_env.env import PlayerShell
 from tools.helper import get_config
 from tools.helper import init_logger
@@ -112,72 +113,32 @@ class SelfPlay:
         env = gym.make(env_name, initial_stacks=self.stack, funds_plot=self.funds_plot, render=self.render,
                        use_cpp_montecarlo=self.use_cpp_montecarlo)
 
-        ourplayer = OurPlayer(env=env)
+        ourplayer = OurPlayer(env=env,fromFile=True, writeFile=True)
         np.random.seed(123)
         env.seed(123)
         env.add_player(RandomPlayer())
         env.add_player(ourplayer)
         
         #equity, stack 1, stack 2, action
-        shape = (100,100,100, 4, env.action_space.n)
-        if False:
-            q_table = np.ndarray((100,100,100, 4, env.action_space.n))
-            alpha_table = np.ndarray((100,100,100, 4, env.action_space.n))
-        else:
-            q_table = np.fromfile("qWeights").reshape(shape)
-            alpha_table = np.fromfile("alphas").reshape(shape)
-
+        shape = (100,10,10, 4, env.action_space.n)
         num_episodes = 10000
         for i in range(num_episodes):
             curState = env.reset()
             #print(curState)
             while not env.done:
-                moves, obs, info = env.legal_moves, env.observation, env.info
-                curaction = random.choice(env.legal_moves)
-                print(env.legal_moves, curaction)
-                #time.sleep(.1)
-                #self.array_everything, self.reward, self.done, self.info
-                
-                ourStack = int(info['stage_data'][0]["stack_at_action"][1]*100)//5
-                hisStack = int(info['stage_data'][0]["stack_at_action"][0]*100)//5
-                equity = int(info['player_data']['equity_to_river_alive']*100)
-                ourstack = min(99,ourStack)
-                hisStack = min(99, hisStack)
-                equity = min(99,equity)
-                round = env.stage.value
-
-                tableArgs = (equity, ourStack, hisStack, int(round))
-                
-                possibleActions = q_table[tableArgs]
-                moves = [x.value for x in moves]
-                allowedActions = [n for n in range(8) if n in moves ]
-                print(allowedActions, q_table[tableArgs][allowedActions])
-                #time.sleep(.5)
-                if random.random()<.1:
-                    curaction = random.choice(range(len(allowedActions)))
-                else:
-                    curaction = np.argmax(q_table[tableArgs][allowedActions])
-                print(curaction)
-                curaction = allowedActions[curaction]
-                access =  tableArgs + (curaction,)
-                alpha = alpha_table[access] +1
-                alpha_table[access] = alpha
+                curaction = ourplayer.getAction()
                 everything, reward, done, info = env.step(curaction)
-                q_table[access] = (1/alpha)*(reward - q_table[access])
-                print(access)
-                print(q_table[access], alpha)
             
-                            
-            q_table.tofile("qWeights")
-            alpha_table.tofile("alphas")
-            #time.sleep(4)
+            if not (i+250) % 500:                            
+                ourplayer.trainDone()
+            print(i, file=sys.stderr)
+        ourplayer.trainDone()
     #             curval = q_table[curState, curaction]
     #             newstate, reward, done, _ = env.step(curaction)
     # #            print(curState, curaction, q_table[curState,curaction], newstate, reward, q_table[curState])
     #             q_table[curState, curaction] += alpha*(reward + gamma*max(q_table[newstate])-curval)
     #             curState = newstate
-        q_table.tofile("qWeights")
-        alpha_table.tofile("alphas")
+
         exit(0)
 
         
