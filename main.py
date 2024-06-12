@@ -25,6 +25,7 @@ options:
 """
 
 import logging
+import logging as log
 import sys
 import gym
 import numpy as np
@@ -109,29 +110,35 @@ class SelfPlay:
         from agents.ourAgent import Player as OurPlayer
         from agents.agent_consider_equity import Player as EquityPlayer
         from agents.agent_random import Player as RandomPlayer
+        np.random.seed(123)
         env_name = 'neuron_poker-v0'
         env = gym.make(env_name, initial_stacks=self.stack, funds_plot=self.funds_plot, render=self.render,
                        use_cpp_montecarlo=self.use_cpp_montecarlo)
-
-        ourplayer = OurPlayer(env=env,fromFile=True, writeFile=True)
-        np.random.seed(123)
         env.seed(123)
-        env.add_player(RandomPlayer())
+        ourplayer = OurPlayer(env=env,fromFile=True, writeFile=True)
+        player0 = OurPlayer(env=env,fromFile=True, writeFile=False, name="p0")
+        env.add_player(player0)
         env.add_player(ourplayer)
         
         #equity, stack 1, stack 2, action
         shape = (100,10,10, 4, env.action_space.n)
-        num_episodes = 10000
+        num_episodes = 30000
         for i in range(num_episodes):
             curState = env.reset()
             #print(curState)
+            count = 0
             while not env.done:
-                curaction = ourplayer.getAction()
+                if count % 2:
+                    curaction = ourplayer.getAction(epsilon=.01)
+                else:
+                    curaction = player0.getAction(epsilon=.01)
                 everything, reward, done, info = env.step(curaction)
+                count += 1
+            ourplayer.gameDone()
             
-            if not (i+250) % 500:                            
+            if not (i+250) % 100:                            
                 ourplayer.trainDone()
-            print(i, file=sys.stderr)
+            print(i, ourplayer.acount, ourplayer.foldcount, file=sys.stderr)
         ourplayer.trainDone()
     #             curval = q_table[curState, curaction]
     #             newstate, reward, done, _ = env.step(curaction)

@@ -2,6 +2,7 @@ import random
 import numpy as np
 import time
 from gym_env.enums import Action
+import logging as log
 
 size = (
     100, #equity
@@ -21,6 +22,11 @@ class Player:
         self.env = env
         self.curActions = []
         self.shape = shape = (100,10,10, 4, env.action_space.n)
+        self.wins = 0
+        self.losses = 0
+        self.idx = 1
+        self.acount = 0
+        self.foldcount = 0
         if fromFile:
             self.qtable = np.fromfile("qWeights").reshape(shape)
             self.alphas = np.fromfile("alphas").reshape(shape)
@@ -31,9 +37,13 @@ class Player:
     def trainDone(self):
         self.qtable.tofile("qWeights")
         self.alphas.tofile("alphas")
+        print("wins: ", self.wins, "losses: ", self.losses)
         
-    def gameDone(self, round):
-        pass
+    def gameDone(self):
+        if self.env.winner_ix == self.idx:
+            self.wins += 1
+        else:
+            self.losses += 1
     
     def adjust_weights(self, weights):
         min_weight = np.min(weights)
@@ -73,9 +83,14 @@ class Player:
         else:
             curaction = np.random.choice(len(q_table[tableArgs][allowedActions]), p=self.adjust_weights(q_table[tableArgs][allowedActions]))
         curaction = allowedActions[curaction]
+        self.acount += 1
+        if curaction == 0:
+            self.foldcount += 1
         access =  tableArgs + (curaction,)
         alpha = alpha_table[access] +1
         alpha_table[access] = alpha
+        #log.info(access)
+        #time.sleep(3)
         self.curActions.append(access)
         return curaction
         
@@ -86,10 +101,11 @@ class Player:
         q_table = self.qtable
         for n,access in enumerate(self.curActions):
             alpha = self.alphas[access]
-            gamma = .7**(len(self.curActions)-n)
-            weightedReward = (1/alpha)*(gamma)*(reward - q_table[access])/10
-            print(access, alpha, weightedReward)
-            q_table[access] = weightedReward
+            gamma = .97**(len(self.curActions)-n)
+            weightedReward = (1/alpha)*(gamma)*(reward - q_table[access])
+            print(access, Action(access[-1]), alpha, weightedReward)
+            q_table[access] += weightedReward
+        #time.sleep(.5)
         self.curActions = []
 
     def action(self, action_space, observation, info):  # pylint: disable=no-self-use

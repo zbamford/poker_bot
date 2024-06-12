@@ -190,6 +190,7 @@ class HoldemTable(Env):
         if self._agent_is_autoplay():
             while self._agent_is_autoplay() and not self.done:
                 log.debug("Autoplay agent. Call action method of agent.")
+                log.info("agent 0")
                 self._get_environment()
                 # call agent's action method
                 action = self.current_player.agent_obj.action(self.legal_moves, self.observation, self.info)
@@ -212,6 +213,7 @@ class HoldemTable(Env):
                     self._calculate_reward(action)
 
             log.debug(f"Previous action reward for seat {self.acting_agent}: {self.reward}")
+            log.info(f"previous action: {action}, {Action(action)}")
         return self.array_everything, self.reward, self.done, self.info
 
     def _execute_step(self, action):
@@ -223,11 +225,13 @@ class HoldemTable(Env):
             
             self._end_hand()
             self._start_new_hand()
+            log.info("new hand started")
 
         self._get_environment()
 
     def _illegal_move(self, action):
         log.warning(f"{action} is an Illegal move, try again. Currently allowed: {self.legal_moves}")
+        log.info("illegal move")
         if self.raise_illegal_moves:
             raise ValueError(f"{action} is an Illegal move, try again. Currently allowed: {self.legal_moves}")
         self.reward = self.illegal_move_reward
